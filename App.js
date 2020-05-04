@@ -12,6 +12,8 @@ const URI = config.get('URI')
 app.use('/api/auth', require('./routes/auth.routes'))
 app.use('/api/link', require('./routes/link.routes'))
 app.use('/api/students', require('./routes/students.routes'))
+app.use('/api/tests', require('./routes/tests.routes'))
+app.use('/tests', require('./routes/tests.routes'))
 
 async function start() {
     try {
