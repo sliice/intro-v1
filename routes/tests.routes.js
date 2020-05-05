@@ -4,6 +4,7 @@ const Test = require('../models/Test')
 const Question = require('../models/Question')
 const UserAnswers = require('../models/UserAnswers')
 const Scale = require('../models/Scale')
+const UserScalePoints = require('../models/UserScalePoints')
 const router = Router()
 const auth = require('../middleware/auth.middleware')
 
@@ -35,27 +36,49 @@ router.get('/:id', auth, async (req, res) => {
 // /id/save
 router.post('/:id/save', auth, async (req, res) => {
     try {
-        const candidate = await UserAnswers.find({ userID: req.body.userID, testID: req.body.testID })
+        const candidate = await UserAnswers.findOneAndDelete({ userID: req.body.userID, testID: req.body.testID })
 
-        if (candidate)
-            res.status(400).json({ message: "This result already  exists"})
+        // Saving user's answers
+        const userAnswers = new UserAnswers(req.body)
+        await userAnswers.save()
 
-
-        // MAKE SURE TO UNCOMMENT IT!!!!
-
-        // const userAnswers = new UserAnswers(req.body)
-        // await userAnswers.save()
-
-        //  CONTINUE AN ANSWERS PROCESSING!
-
-        const scalesJSON = await Scale.find()
-        console.log("THE SCALES ARE: ", scales)
-
+        const scalesJSON = await Scale.find({ testID: req.body.testID })
         const answersJSON = req.body
-        // const answersArr =
-        console.log(answers)
+        const yes = []
+        const no = []
+        for (let key in answersJSON) {
+            if (key.includes('a')) {
+                if (answersJSON[key]) yes.push(key.slice(1))
+                else if (!answersJSON[key]) no.push(key.slice(1))
+            }
+        }
 
-        res.status(201).json({ message: "Answers've saved"})
+
+        const scalePointsJSON = []
+
+        scalesJSON.map( async (scale, index) => {
+            let matches = 0
+            try {
+                scale.get('yes').forEach( element => {
+                    if (yes.indexOf(element) > -1) matches += 1 * scale.k
+                })
+            }
+            catch (e) {}
+            try {
+                scale.get('no').forEach( element => {
+                    if (no.indexOf(element) > -1) matches += 1 * scale.k
+                })
+            }
+            catch (e) {}
+
+            scalePointsJSON[index] = { userID: req.body.userID, scaleID: scale._id, points: matches }
+
+            await UserScalePoints.findOneAndDelete({ userID: req.body.userID, scaleID: scale._id })
+            const userScalePoints = new UserScalePoints(scalePointsJSON[index])
+            await userScalePoints.save()
+        })
+
+        res.status(201).json({ message: "Result is saved"})
     }
     catch (e) {
         res.status(500).json({ message: "Something went wrong. Try again" })
