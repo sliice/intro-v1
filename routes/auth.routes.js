@@ -6,7 +6,7 @@ const {check, validationResult} = require('express-validator')
 const router = Router()
 const User = require('../models/User')
 
-// /api/auth/register
+// auth/register
 router.post('/register',
     [
         check('login', 'Too short. Min length is 2').isLength({ min: 2 }),
@@ -35,7 +35,7 @@ router.post('/register',
     }
 })
 
-// /api/auth/login
+// /auth/login
 router.post('/login',
     [
         // check('email', 'Incorrect email').normalizeEmail().isEmail(),

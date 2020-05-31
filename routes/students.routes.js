@@ -8,7 +8,7 @@ const router = Router()
 const auth = require('../middleware/auth.middleware')
 
 
-// /api/students/create
+// /students/create
 router.post('/create',
     [
         check('login', 'Too short. Min length is 2').isLength({ min: 2 }),
@@ -21,20 +21,20 @@ router.post('/create',
                 return res.status(400).json({ errors: errors.array(), message: 'Incorrect registration data'})
             }
 
-            const {login, password, type, name, surname, grade, letter } = req.body
+            const {login, password, type, pic, name, surname, grade, letter, birthdate } = req.body
 
             const candidate = await User.findOne({ login })
             if (candidate)
                 res.status(400).json({ message: "This user already  exists"})
             const hashedPassword = await bcrypt.hash(password, 12)
 
-            const user = new User({ login, password: hashedPassword, type, name, surname})
+            const user = new User({ login, password: hashedPassword, pic, type, name, surname})
 
             await user.save()
             res.status(201).json({ message: "User've created"})
 
             // if user is a student
-            if (type === 'u') {
+            if (type === 's') {
                 try {
                     const candidateStudent = await User.findOne({ login })
                     const student = new Student({ user: candidateStudent._id, grade , letter})
@@ -52,18 +52,37 @@ router.post('/create',
         }
     })
 
-// /api/students
+// /students
     router.get('/', auth, async (req, res) => {
         try {
             const students = await Student.find()
-
-            for (var i = 0; i < students.length; i++) {
-                students[i] = JSON.parse(JSON.stringify(students[i]))
-                const student = await User.findById(students[i].user)
-                students[i].name = JSON.parse(JSON.stringify(student)).name
-                students[i].surname = JSON.parse(JSON.stringify(student)).surname
+            const gradesArrayString = []
+            const gradesArrayObject = []
+            for (let i = 0; i < students.length; i++) {
+                if (!gradesArrayString.includes(students[i].grade  + students[i].letter)) {
+                    gradesArrayString.push(students[i].grade + students[i].letter)
+                    gradesArrayObject.push({ grade: students[i].grade, letter: students[i].letter })
+                }
             }
-            res.json(students)
+            gradesArrayObject.sort((a, b) => a.letter > b.letter ? 1 : -1);
+            gradesArrayObject.sort((a, b) => a.grade > b.grade ? 1 : -1);
+
+            const grades = []
+            for (let i = 0; i < gradesArrayObject.length; i++) {
+                let studentsArray = []
+
+                for (let j = 0; j < students.length; j++){
+
+                    if (gradesArrayObject[i].grade == students[j].grade && gradesArrayObject[i].letter.toString() === students[j].letter.toString()) {
+                        let student = await User.findById(students[j].user)
+                        studentsArray.push({ username: student.login, name: student.name, surname: student.surname, birthdate: student.birthdate, pic: student.pic })
+                    }
+
+                }
+                studentsArray.sort((a, b) => a.surname > b.surname ? 1 : -1);
+                grades.push({ grade: gradesArrayObject[i].grade, letter: gradesArrayObject[i].letter, students: studentsArray })
+            }
+            res.json(grades)
         }
         catch(e){
             res.status(500).json({ message: "Something went wrong. Try again" })
