@@ -1,70 +1,46 @@
 const {Router} = require('express')
 const router = Router()
 const User = require('../models/User')
-const Scale = require('../models/Scale')
+const UserAnswers = require('../models/UserAnswers')
 const Test = require('../models/Test')
-const ScaleResult = require('../models/ScaleResult')
-const UserScaleResult = require('../models/UserScaleResult')
-const auth = require('../middleware/auth.middleware')
+const auth = require('../middleware/Auth.middleware')
+const TestResult = require('../middleware/TestResult')
 
 
 // /login
 router.get('/:login', auth, async (req, res) => {
 
-    // A long result:
-
-    // try {
-    //     const user = await User.findOne({ login: req.params.login })
-    //     const userResults = await UserScaleResult.find({ userID: user._id })
-    //
-    //     // Total results (server response s)
-    //     const results = []
-    //     for (let i = 0; i < userResults.length; i++){
-    //         const scaleResult = await ScaleResult.findOne({ _id: userResults[i].scaleResultID })
-    //         const scale = await Scale.findOne({ _id: scaleResult.scaleID})
-    //         const test = await Test.findOne({ _id: scale.testID })
-    //         const total = {points: userResults[i].points, scaleResult: scaleResult.name, description: scaleResult.description, date: userResults[i].date, important: scaleResult.important}
-    //
-    //         results.push({ testID: test._id, link: test.link, test: test.name, result: total })
-    //     }
-    //     res.json(results)
-    // }
-    // catch(e){
-    //     res.status(500).json({ message: "Something went wrong. Try again" })
-    // }
-
-    // A short version of result is:
-
     try {
         const user = await User.findOne({ login: req.params.login })
-        const userResults = await UserScaleResult.find({ userID: user._id })
+        const userAnswers = await UserAnswers.find({ userID: user._id })
+        let response = []
 
-        // Total results (server response s)
-        const results = []
-        const tests = []
-        for (let i = 0; i < userResults.length; i++) {
-            const scaleResult = await ScaleResult.findOne({_id: userResults[i].scaleResultID})
-            if (scaleResult.important) {
-                // total.push({scaleResult: scaleResult.name, date: userResults[i].date})
-                let scale = await Scale.findOne({_id: scaleResult.scaleID})
-                let test = await Test.findOne({_id: scale.testID})
-                if (!tests.includes(test._id.toString())) tests.push(test._id.toString())
+        if (!user || !userAnswers)
+            res.json({ message: 'Results not found' })
+
+        for (let i = 0; i < userAnswers.length; i++){
+
+            let test = await Test.findById(userAnswers[i].testID)
+            let result = TestResult(test, userAnswers[i].answers)
+
+            let link = test.link
+            test = result.test
+
+            let date = userAnswers[i].date
+            let scales = []
+
+            for (let j = 0; j < result.scales.length; j++) {
+                if (result.scales[j].important)
+                    scales.push(result.scales[j].name + ': ' + result.scales[j].intervalName)
             }
+
+            if (!scales[0])
+                scales.push('Всё в норме')
+
+            response.push({test, link, date, scales})
         }
 
-        for (let i = 0; i < tests.length; i++){
-            let total = []
-            let test = await Test.findOne({ _id: tests[i] })
-            for (let j = 0; j < userResults.length; j++) {
-                let scaleResult = await ScaleResult.findOne({ _id: userResults[j].scaleResultID })
-                if (scaleResult.important){
-                    const scale = await Scale.findOne({ _id: scaleResult.scaleID})
-                    if (test._id.toString() === scale.testID.toString()) total.push({ scaleResult: scaleResult.name, date: userResults[j].date })
-                }
-            }
-            results.push({ testID: test._id, link: test.link, test: test.name, result: total })
-        }
-        res.json(results)
+        res.json(response)
     }
     catch(e){
         res.status(500).json({ message: "Something went wrong. Try again" })

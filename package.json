@@ -26,7 +26,8 @@
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^5.9.10",
     "react-datepicker": "^2.16.0",
-    "shortid": "^2.2.15"
+    "shortid": "^2.2.15",
+    "styled-components": "^5.1.1"
   },
   "devDependencies": {
     "concurrently": "^5.2.0",

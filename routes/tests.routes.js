@@ -1,18 +1,15 @@
-// import mongoose from 'mongoose'
 const {Router} = require('express')
 const Test = require('../models/Test')
-const Question = require('../models/Question')
+const User = require('../models/User')
 const UserAnswers = require('../models/UserAnswers')
-const Scale = require('../models/Scale')
-const UserScalePoints = require('../models/UserScalePoints')
-const ScaleResult = require('../models/ScaleResult')
 const router = Router()
-const auth = require('../middleware/auth.middleware')
+const auth = require('../middleware/Auth.middleware')
+const TestResult = require('../middleware/TestResult')
 
 // /api/tests
 router.get('/', auth, async (req, res) => {
     try {
-        const tests = await Test.find()
+        const tests = await Test.find({ draft: false })
         res.json(tests)
     }
     catch(e){
@@ -20,12 +17,26 @@ router.get('/', auth, async (req, res) => {
     }
 })
 
-// /api/tests/id
-router.get('/:id', auth, async (req, res) => {
+// /api/tests/size/id
+router.get('/:size/:id', auth, async (req, res) => {
     try {
-        const tests = await Test.findOne({ link: req.params.id })
-        const questions = await Question.findOne({ testID: tests._id })
-        res.json({tests, questions})
+        const test = await Test.findOne({ link: req.params.id })
+        let response
+
+        if (req.params.size === 'full')
+            response = test
+
+        else if (req.params.size === 'short')
+            response = {
+            name: test.name,
+            description: test.description,
+            shortDescription: test.shortDescription,
+            q: test.q,
+            questions: test.questions,
+            answers: test.answers
+        }
+
+        res.json(response)
     }
     catch(e){
         res.status(500).json({ message: "Something went wrong. Try again" })
@@ -33,71 +44,63 @@ router.get('/:id', auth, async (req, res) => {
 })
 
 // /id/save
-router.post('/:id/save', auth, async (req, res) => {
+router.post('/:id/save', async (req, res) => {
     try {
-        const candidate = await UserAnswers.findOneAndDelete({ userID: req.body.userID, testID: req.body.testID })
+        const data = req.body
+        const test = await Test.findOne({ link: data.link })
+        const user = await User.findById(data.userID)
 
-        // Saving user's answers
-        const userAnswers = new UserAnswers(req.body)
-        await userAnswers.save()
+        const filter = { userID: user._id, testID: test._id}
+        const newData = { userID: user._id, testID: test._id, answers: data.answers, date: data.date }
 
-        // Find all the scales related to the test
-        // Two-answered test only yet
-        const scalesJSON = await Scale.find({ testID: req.body.testID })
-        const answersJSON = req.body
-        const yes = []
-        const no = []
-        for (let key in answersJSON) {
-            if (key.includes('a')) {
-                if (answersJSON[key]) yes.push(key.slice(1))
-                else if (!answersJSON[key]) no.push(key.slice(1))
-            }
-        }
-
-        const scalePointsJSON = []
-        const scaleUserResult = []
-
-        scalesJSON.map( async (scale, index) => {
-            let matches = 0
-            try {
-                scale.get('yes').forEach( element => {
-                    if (yes.indexOf(element) > -1) matches += 1 * scale.k
-                })
-            }
-            catch (e) {}
-            try {
-                scale.get('no').forEach( element => {
-                    if (no.indexOf(element) > -1) matches += 1 * scale.k
-                })
-            }
-            catch (e) {}
-
-            scalePointsJSON[index] = { userID: req.body.userID, scaleID: scale._id, points: matches,  }
-
-            // await UserScalePoints.findOneAndDelete({ userID: req.body.userID, scaleID: scale._id })
-            // const userScalePoints = new UserScalePoints(scalePointsJSON[index])
-            // await userScalePoints.save()
-
-                // if (!await UserScalePoints.findOneAndUpdate({ userID: req.body.userID, scaleID: scale._id }, scalePointsJSON[index])) {
-            const userScalePoints = await UserScalePoints.updateOne({ userID: req.body.userID, scaleID: scale._id }, scalePointsJSON[index])
-                if (!userScalePoints) {
-                    console.log("NO RESULT FOUND")
-                    console.log("  ")
-                    console.log("  ")
-                    console.log("  ")
-                    const userScalePoints = new UserScalePoints(scalePointsJSON[index])
-                    await userScalePoints.save()
-                }
-                // else console.log("POINTS'VE BEEN FOUND    !!!!!!!!!!!!!!!!")
-
-            // scaleUserResult[index] = await ScaleResult.findOne({ scaleID: scale._id, min: { $lte: matches}, max: { $gte: matches }})
+        const userAnswers = await UserAnswers.findOneAndUpdate(filter, newData, {
+            returnOriginal: true
         })
 
+        if (!userAnswers){
+            const newUserAnswers = new UserAnswers({...newData})
+            await newUserAnswers.save()
+        }
 
-        // console.log("SCALE USER RESULT IS AN ARRAY:", scaleUserResult)
-        // res.status(201).json(scaleUserResult)
-        // res.json(scaleUserResult)
         res.status(201).json({ message: "Result is saved"})
+    }
+    catch (e) {
+        res.status(500).json({ message: "Something went wrong. Try again" })
+    }
+})
+
+// /id/drop
+router.post('/:id/drop', async (req, res) => {
+    try {
+        const test = await Test.findOneAndDelete({ link: req.params.id }, {
+            returnOriginal: true
+        })
+
+        const id = test._id
+        await UserAnswers.deleteMany({ testID: id })
+
+        res.status(201).json({ message: "Test is deleted"})
+    }
+    catch (e) {
+        res.status(500).json({ message: "Something went wrong. Try again" })
+    }
+})
+
+
+// /api/tests/id/result/login
+router.get('/:id/result/:login', auth, async(req, res) => {
+    try {
+        const user = await User.findOne({ login: req.params.login })
+        const test = await Test.findOne({ link: req.params.id })
+        const userAnswers = await UserAnswers.findOne({ userID: user._id, testID: test._id })
+
+        if (!userAnswers)
+            res.json({ message: 'Пока что такого результата нет' })
+
+        let response = TestResult(test, userAnswers.answers)
+        response = {...response, user: user.name + ' ' + user.surname }
+
+        res.json(response)
     }
     catch (e) {
         res.status(500).json({ message: "Something went wrong. Try again" })

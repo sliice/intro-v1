@@ -5,8 +5,7 @@ const bcrypt = require('bcryptjs')
 const config = require('config')
 const {check, validationResult} = require('express-validator')
 const router = Router()
-const auth = require('../middleware/auth.middleware')
-
+const auth = require('../middleware/Auth.middleware')
 
 // /students/create
 router.post('/create',
@@ -21,11 +20,12 @@ router.post('/create',
                 return res.status(400).json({ errors: errors.array(), message: 'Incorrect registration data'})
             }
 
-            const {login, password, type, pic, name, surname, grade, letter, birthdate } = req.body
+            const {login, password, type, pic, name, surname, grade, letter, birthday } = req.body
 
             const candidate = await User.findOne({ login })
             if (candidate)
-                res.status(400).json({ message: "This user already  exists"})
+                res.status(400).json({ message: "This user already exists"})
+
             const hashedPassword = await bcrypt.hash(password, 12)
 
             const user = new User({ login, password: hashedPassword, pic, type, name, surname})
@@ -37,7 +37,7 @@ router.post('/create',
             if (type === 's') {
                 try {
                     const candidateStudent = await User.findOne({ login })
-                    const student = new Student({ user: candidateStudent._id, grade , letter})
+                    const student = new Student({ user: candidateStudent._id, grade , letter, birthday})
                     await student.save()
                     res.status(201).json({ message: "Student've created"})
                 }
@@ -75,7 +75,7 @@ router.post('/create',
 
                     if (gradesArrayObject[i].grade == students[j].grade && gradesArrayObject[i].letter.toString() === students[j].letter.toString()) {
                         let student = await User.findById(students[j].user)
-                        studentsArray.push({ username: student.login, name: student.name, surname: student.surname, birthdate: student.birthdate, pic: student.pic })
+                        studentsArray.push({ username: student.login, name: student.name, surname: student.surname, birthday: student.birthday, pic: student.pic })
                     }
 
                 }
@@ -88,5 +88,17 @@ router.post('/create',
             res.status(500).json({ message: "Something went wrong. Try again" })
         }
     })
+
+router.get('/grade/:k', auth, async (req, res) => {
+    try {
+        const students = await Student.updateMany({}, {
+            $inc: {grade: req.params.k}
+        })
+        res.json({ message: 'Grade have changed' })
+    }
+    catch (e) {
+        res.status(500).json({ message: "Something went wrong. Try again" })
+    }
+})
 
 module.exports = router
