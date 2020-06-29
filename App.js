@@ -9,13 +9,13 @@ app.use(express.json({ extended: true }))
 const PORT = config.get('port') || 5000
 const URI = config.get('URI')
 
-app.use('/auth', require('./routes/auth.routes'))
-app.use('/students', require('./routes/students.routes'))
+app.use('/api/auth', require('./routes/auth.routes'))
+app.use('/api/students', require('./routes/students.routes'))
 app.use('/api/tests', require('./routes/tests.routes'))
-app.use('/tests', require('./routes/tests.routes'))
-app.use('/addtest', require('./routes/addtest.routes'))
-app.use('/results', require('./routes/results.routes'))
-app.use('/users', require('./routes/users.routes'))
+// app.use('/tests', require('./routes/tests.routes'))
+app.use('/api/addtest', require('./routes/addtest.routes'))
+app.use('/api/results', require('./routes/results.routes'))
+app.use('/api/users', require('./routes/users.routes'))
 
 async function start() {
     try {
