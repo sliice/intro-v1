@@ -8,7 +8,7 @@ See deployment for notes on how to deploy the project on a live system.
 
 ###Prerequisites
 
-The project is developed as a client-server-architecture app, so ...idk lol
+The project is developed as a client-server-architecture app
 
 ##Built With
 
